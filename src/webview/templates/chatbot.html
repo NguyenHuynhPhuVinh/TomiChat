@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="{{cssPath}}" />
+  </head>
+  <body
+    class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+  >
+    <!-- Compact Header -->
+    <header
+      class="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+    >
+      <h1 class="text-sm font-semibold text-center">{{title}}</h1>
+    </header>
+
+    <!-- Chat Container -->
+    <main class="flex-1 flex flex-col w-full">
+      <!-- Messages Container -->
+      <div
+        id="messagesContainer"
+        class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
+      >
+        <!-- Welcome Message -->
+        <div
+          id="welcomeMessage"
+          class="text-center text-gray-600 dark:text-gray-400 py-4 px-2 text-sm italic"
+        >
+          {{welcomeMessage}}
+        </div>
+      </div>
+    </main>
+
+    <!-- Compact Input Container -->
+    <footer
+      class="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+    >
+      <form id="messageForm" class="flex gap-2">
+        <input
+          type="text"
+          id="messageInput"
+          class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="{{placeholder}}"
+          autocomplete="off"
+          maxlength="1000"
+        />
+        <button
+          type="submit"
+          id="sendButton"
+          class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          Gửi
+        </button>
+      </form>
+    </footer>
+
+    <!-- Compact Message Template -->
+    <template id="messageTemplate">
+      <div class="message flex items-start gap-2 mb-3">
+        <!-- Small Avatar -->
+        <div
+          class="message-avatar w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-blue-500 text-white"
+        >
+          {{avatar}}
+        </div>
+
+        <!-- Content -->
+        <div class="message-content flex-1 min-w-0">
+          <div
+            class="message-text text-sm leading-relaxed p-2 rounded-lg bg-gray-100 dark:bg-gray-700 break-words"
+          >
+            {{text}}
+          </div>
+          <div
+            class="message-time text-xs text-gray-500 dark:text-gray-400 mt-1"
+          >
+            {{timestamp}}
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script src="{{jsPath}}"></script>
+  </body>
+</html>
