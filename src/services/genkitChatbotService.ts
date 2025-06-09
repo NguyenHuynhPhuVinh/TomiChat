@@ -1,6 +1,6 @@
-import { chatFlow, storyGenerationFlow } from "../genkit/flows";
-import { STREAMING_CONFIG } from "../genkit/config";
+import { getFlows, isGenkitReady } from "../genkit/config";
 import { ConfigService } from "./configService";
+import { SessionManager } from "./sessionStore";
 import {
   ChatMessage,
   ConversationMessage,
@@ -19,9 +19,11 @@ export class GenkitChatbotService {
   private static instance: GenkitChatbotService;
   private conversationHistory: ConversationMessage[] = [];
   private configService: ConfigService;
+  private sessionManager: SessionManager;
 
   private constructor() {
     this.configService = ConfigService.getInstance();
+    this.sessionManager = SessionManager.getInstance();
   }
 
   public static getInstance(): GenkitChatbotService {
@@ -32,12 +34,68 @@ export class GenkitChatbotService {
   }
 
   /**
-   * Xử lý tin nhắn từ người dùng
+   * Xử lý tin nhắn từ người dùng với streaming thực sự
    */
-  public async processMessage(
+  public async processMessageWithStreaming(
     userMessage: string,
-    onStreamingChunk?: (chunk: StreamingChunk) => void
+    onStreamingChunk: (chunk: string) => void
   ): Promise<{
+    userMsg: ChatMessage;
+    finalResponse: string;
+    suggestions?: string[];
+  }> {
+    // Validate input
+    this.validateMessage(userMessage);
+
+    // Tạo user message
+    const userMsg = this.createMessage(userMessage, true);
+
+    try {
+      // Kiểm tra flows có sẵn không
+      const flows = getFlows();
+      if (!flows || !isGenkitReady()) {
+        throw new GenkitError(
+          "TomiChat chưa được cấu hình đúng cách. Vui lòng thiết lập API key.",
+          "NOT_CONFIGURED"
+        );
+      }
+
+      // Thêm vào lịch sử
+      this.addToHistory("user", userMessage);
+
+      // Gọi Genkit flow với streaming
+      const response = await flows.chatFlow({
+        message: userMessage,
+      });
+
+      // Thêm phản hồi vào lịch sử
+      this.addToHistory("model", response.response);
+
+      return {
+        userMsg,
+        finalResponse: response.response,
+        suggestions: response.suggestions,
+      };
+    } catch (error) {
+      console.error("Lỗi khi xử lý tin nhắn:", error);
+
+      const errorMsg =
+        error instanceof GenkitError
+          ? error.message
+          : "Xin lỗi, tôi đang gặp một chút vấn đề. Bạn có thể thử lại không? 🤔";
+
+      return {
+        userMsg,
+        finalResponse: errorMsg,
+        suggestions: [...CHATBOT_CONSTANTS.DEFAULT_SUGGESTIONS],
+      };
+    }
+  }
+
+  /**
+   * Xử lý tin nhắn từ người dùng (không streaming)
+   */
+  public async processMessage(userMessage: string): Promise<{
     userMsg: ChatMessage;
     botMsg: ChatMessage;
   }> {
@@ -48,33 +106,29 @@ export class GenkitChatbotService {
     const userMsg = this.createMessage(userMessage, true);
 
     try {
+      // Kiểm tra flows có sẵn không
+      const flows = getFlows();
+      if (!flows || !isGenkitReady()) {
+        throw new GenkitError(
+          "TomiChat chưa được cấu hình đúng cách. Vui lòng thiết lập API key.",
+          "NOT_CONFIGURED"
+        );
+      }
+
       // Thêm vào lịch sử
       this.addToHistory("user", userMessage);
 
       // Gọi Genkit flow
-      const response = await chatFlow({
+      const response = await flows.chatFlow({
         message: userMessage,
-        conversationHistory: this.getRecentHistory(),
       });
 
       // Tạo bot message
-      let botMsg: ChatMessage;
-
-      if (this.configService.isStreamingEnabled() && onStreamingChunk) {
-        // Streaming response
-        botMsg = await this.handleStreamingResponse(
-          response.response,
-          response.suggestions,
-          onStreamingChunk
-        );
-      } else {
-        // Non-streaming response
-        botMsg = this.createMessage(
-          response.response,
-          false,
-          response.suggestions
-        );
-      }
+      const botMsg = this.createMessage(
+        response.response,
+        false,
+        response.suggestions
+      );
 
       // Thêm phản hồi vào lịch sử
       this.addToHistory("model", response.response);
@@ -101,7 +155,15 @@ export class GenkitChatbotService {
    */
   public async generateStory(request: StoryRequest): Promise<StoryResponse> {
     try {
-      const story = await storyGenerationFlow(request);
+      const flows = getFlows();
+      if (!flows || !isGenkitReady()) {
+        throw new GenkitError(
+          "TomiChat chưa được cấu hình đúng cách. Vui lòng thiết lập API key.",
+          "NOT_CONFIGURED"
+        );
+      }
+
+      const story = await flows.storyFlow(request);
       return story;
     } catch (error) {
       console.error("Lỗi khi tạo câu chuyện:", error);
@@ -139,7 +201,7 @@ export class GenkitChatbotService {
       });
 
       if (!isComplete) {
-        await this.delay(STREAMING_CONFIG.delay);
+        await this.delay(30); // 30ms delay
       }
     }
 
@@ -157,10 +219,10 @@ export class GenkitChatbotService {
    */
   private splitIntoChunks(text: string): string[] {
     const chunks: string[] = [];
-    const chunkSize = STREAMING_CONFIG.chunkSize;
+    const chunkSize = 50; // 50 characters per chunk
 
     for (let i = 0; i < text.length; i += chunkSize) {
-      chunks.push(text.slice(0, i + chunkSize));
+      chunks.push(text.slice(i, i + chunkSize));
     }
 
     return chunks;

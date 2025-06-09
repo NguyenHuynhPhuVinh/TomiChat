@@ -1,12 +1,16 @@
 import { genkit } from "genkit";
 import { googleAI } from "@genkit-ai/googleai";
 import { ConfigService } from "../services/configService";
+import { initializeFlows } from "./genkitFlows";
+import { initializeTools } from "./tools";
 
 /**
  * Khởi tạo Genkit với cấu hình từ ConfigService
  */
 let ai: ReturnType<typeof genkit> | null = null;
 let configService: ConfigService;
+let flows: ReturnType<typeof initializeFlows> | null = null;
+let tools: ReturnType<typeof initializeTools> | null = null;
 
 /**
  * Khởi tạo AI instance
@@ -22,19 +26,28 @@ export const initializeAI = () => {
 
       ai = genkit({
         plugins: [googleAI()],
-        model: googleAI.model(configService.getModel()),
       });
 
-      console.log("✅ TomiChat AI đã được khởi tạo thành công");
+      // Khởi tạo tools trước
+      tools = initializeTools();
+
+      // Khởi tạo flows với tools
+      flows = initializeFlows();
+
+      console.log("✅ TomiChat AI và flows đã được khởi tạo thành công");
       return true;
     } catch (error) {
       console.error("❌ Lỗi khởi tạo TomiChat AI:", error);
       ai = null;
+      flows = null;
+      tools = null;
       return false;
     }
   } else {
     console.log("⚠️ Chưa có API key, TomiChat AI chưa được khởi tạo");
     ai = null;
+    flows = null;
+    tools = null;
     return false;
   }
 };
@@ -43,6 +56,16 @@ export const initializeAI = () => {
  * Lấy AI instance
  */
 export const getAI = () => ai;
+
+/**
+ * Lấy flows instance
+ */
+export const getFlows = () => flows;
+
+/**
+ * Lấy tools instance
+ */
+export const getTools = () => tools;
 
 /**
  * Kiểm tra xem Genkit có sẵn sàng không
@@ -54,6 +77,8 @@ export const isGenkitReady = () => ai !== null;
  */
 export const reloadAI = () => {
   ai = null;
+  flows = null;
+  tools = null;
   return initializeAI();
 };
 
