@@ -16,6 +16,10 @@ let isProcessing = false;
 document.addEventListener("DOMContentLoaded", () => {
   messageInput.focus();
   setupEventListeners();
+  setupKeyboardShortcuts();
+
+  // Add smooth scroll behavior to messages container
+  messagesContainer.style.scrollBehavior = "smooth";
 });
 
 // Event Listeners
@@ -90,9 +94,11 @@ function setProcessingState(processing) {
 
   if (processing) {
     sendButton.classList.add("opacity-50", "cursor-not-allowed");
+    messageInput.classList.add("opacity-75");
   } else {
     sendButton.classList.remove("opacity-50", "cursor-not-allowed");
-    messageInput.focus();
+    messageInput.classList.remove("opacity-75");
+    focusInput();
   }
 }
 
@@ -103,7 +109,12 @@ function addMessage(message) {
 
     // Remove welcome message if it exists
     if (welcomeMessage && welcomeMessage.parentNode) {
-      welcomeMessage.remove();
+      welcomeMessage.style.opacity = "0";
+      setTimeout(() => {
+        if (welcomeMessage && welcomeMessage.parentNode) {
+          welcomeMessage.remove();
+        }
+      }, 200);
     }
 
     // Clone template
@@ -135,11 +146,22 @@ function addMessage(message) {
     textDiv.textContent = message.text || "No message text";
     timeDiv.textContent = message.timestamp || new Date().toLocaleTimeString();
 
+    // Add initial opacity for animation
+    messageDiv.style.opacity = "0";
+    messageDiv.style.transform = "translateY(20px)";
+
     // Add to container
     messagesContainer.appendChild(messageElement);
 
-    // Scroll to bottom
-    scrollToBottom();
+    // Animate in
+    requestAnimationFrame(() => {
+      messageDiv.style.transition = "all 0.3s ease-out";
+      messageDiv.style.opacity = "1";
+      messageDiv.style.transform = "translateY(0)";
+    });
+
+    // Scroll to bottom with smooth animation
+    scrollToBottomSmooth();
 
     console.log("Message added successfully");
   } catch (error) {
@@ -153,6 +175,14 @@ function addMessage(message) {
 // Scroll to bottom of messages
 function scrollToBottom() {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Smooth scroll to bottom of messages
+function scrollToBottomSmooth() {
+  messagesContainer.scrollTo({
+    top: messagesContainer.scrollHeight,
+    behavior: "smooth",
+  });
 }
 
 // Handle messages from extension
@@ -179,12 +209,37 @@ window.addEventListener("message", (event) => {
 // Clear chat
 function clearChat() {
   messagesContainer.innerHTML = `
-        <div id="welcomeMessage" class="text-center text-gray-600 dark:text-gray-400 py-4 px-2 text-sm italic">
+        <div id="welcomeMessage" class="text-center text-gray-600 dark:text-gray-400 py-6 px-3 text-sm leading-relaxed animate-fade-in">
             👋 Xin chào! Tôi là TomiChat, trợ lý AI giúp bạn tạo ra những câu chuyện thú vị.<br>
             Hãy chia sẻ ý tưởng của bạn và tôi sẽ giúp phát triển thành một câu chuyện tuyệt vời!
         </div>
     `;
   setProcessingState(false);
+}
+
+// Setup keyboard shortcuts
+function setupKeyboardShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    // Ctrl/Cmd + L to clear chat
+    if ((e.ctrlKey || e.metaKey) && e.key === "l") {
+      e.preventDefault();
+      clearChat();
+    }
+
+    // Escape to focus input
+    if (e.key === "Escape") {
+      e.preventDefault();
+      messageInput.focus();
+    }
+  });
+}
+
+// Enhanced focus management
+function focusInput() {
+  if (!isProcessing) {
+    messageInput.focus();
+    messageInput.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 // Utility functions
