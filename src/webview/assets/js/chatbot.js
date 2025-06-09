@@ -8,9 +8,13 @@ const messageInput = document.getElementById("messageInput");
 const sendButton = document.getElementById("sendButton");
 const welcomeMessage = document.getElementById("welcomeMessage");
 const messageTemplate = document.getElementById("messageTemplate");
+const suggestionTemplate = document.getElementById("suggestionTemplate");
+const typingTemplate = document.getElementById("typingTemplate");
 
 // State
 let isProcessing = false;
+let streamingMessages = new Map(); // Track streaming messages
+let conversationHistory = []; // Track conversation for context
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
@@ -77,9 +81,23 @@ function sendMessage(text) {
 
   setProcessingState(true);
 
+  // Add to conversation history
+  conversationHistory.push({
+    role: "user",
+    content: text,
+  });
+
+  // Keep only recent history (last 20 messages)
+  if (conversationHistory.length > 20) {
+    conversationHistory = conversationHistory.slice(-20);
+  }
+
   vscode.postMessage({
     command: "sendMessage",
-    data: { text },
+    data: {
+      text,
+      conversationHistory: conversationHistory.slice(-10), // Send last 10 messages
+    },
   });
 
   messageInput.value = "";
@@ -123,11 +141,15 @@ function addMessage(message) {
     const avatarDiv = messageDiv.querySelector(".message-avatar");
     const textDiv = messageDiv.querySelector(".message-text");
     const timeDiv = messageDiv.querySelector(".message-time");
+    const suggestionsDiv = messageDiv.querySelector(".message-suggestions");
 
     if (!messageDiv || !avatarDiv || !textDiv || !timeDiv) {
       console.error("Template elements not found");
       return;
     }
+
+    // Set message ID for tracking
+    messageDiv.setAttribute("data-message-id", message.id);
 
     // Set message type classes for sidebar
     if (message.isUser) {
@@ -136,15 +158,46 @@ function addMessage(message) {
       avatarDiv.classList.add("bg-green-500");
       textDiv.classList.remove("bg-gray-100", "dark:bg-gray-700");
       textDiv.classList.add("bg-green-500", "text-white");
+
+      // Add to conversation history
+      conversationHistory.push({
+        role: "user",
+        content: message.text,
+      });
     } else {
       avatarDiv.classList.add("bg-blue-500");
-      // Keep default gray background for bot messages
+
+      // Add to conversation history
+      if (message.text && !message.isStreaming) {
+        conversationHistory.push({
+          role: "model",
+          content: message.text,
+        });
+      }
     }
 
     // Fill in content
     avatarDiv.textContent = message.isUser ? "👤" : "🤖";
-    textDiv.textContent = message.text || "No message text";
-    timeDiv.textContent = message.timestamp || new Date().toLocaleTimeString();
+
+    // Handle streaming messages
+    if (message.isStreaming && !message.isUser) {
+      textDiv.innerHTML =
+        '<span class="typing-indicator">TomiChat đang viết...</span>';
+      streamingMessages.set(message.id, messageDiv);
+    } else {
+      textDiv.textContent = message.text || "No message text";
+    }
+
+    timeDiv.textContent = formatTimestamp(message.timestamp);
+
+    // Add suggestions if available
+    if (
+      message.suggestions &&
+      message.suggestions.length > 0 &&
+      !message.isUser
+    ) {
+      addSuggestions(suggestionsDiv, message.suggestions);
+    }
 
     // Add initial opacity for animation
     messageDiv.style.opacity = "0";
@@ -168,8 +221,10 @@ function addMessage(message) {
     console.error("Error adding message:", error);
   }
 
-  // Re-enable form after processing
-  setProcessingState(false);
+  // Re-enable form after processing (only for non-streaming messages)
+  if (!message.isStreaming) {
+    setProcessingState(false);
+  }
 }
 
 // Scroll to bottom of messages
@@ -196,9 +251,19 @@ window.addEventListener("message", (event) => {
       addMessage(message.data.message);
       break;
 
+    case "streamingMessage":
+      console.log("Processing streamingMessage:", message.data);
+      handleStreamingMessage(message.data.messageId, message.data.chunk);
+      break;
+
     case "clearChat":
       console.log("Processing clearChat");
       clearChat();
+      break;
+
+    case "error":
+      console.log("Processing error:", message.data);
+      handleError(message.data.message, message.data.details);
       break;
 
     default:
@@ -210,10 +275,20 @@ window.addEventListener("message", (event) => {
 function clearChat() {
   messagesContainer.innerHTML = `
         <div id="welcomeMessage" class="text-center text-gray-600 dark:text-gray-400 py-6 px-3 text-sm leading-relaxed animate-fade-in">
-            👋 Xin chào! Tôi là TomiChat, trợ lý AI giúp bạn tạo ra những câu chuyện thú vị.<br>
-            Hãy chia sẻ ý tưởng của bạn và tôi sẽ giúp phát triển thành một câu chuyện tuyệt vời!
+            👋 Xin chào! Tôi là TomiChat, trợ lý AI giúp bạn tạo ra những câu chuyện thú vị.<br><br>
+            🌟 Tôi có thể giúp bạn:<br>
+            • Tạo câu chuyện từ ý tưởng của bạn<br>
+            • Phát triển nhân vật và cốt truyện<br>
+            • Đưa ra gợi ý sáng tạo<br>
+            • Kể những câu chuyện hấp dẫn<br><br>
+            Hãy chia sẻ ý tưởng của bạn và tôi sẽ giúp biến nó thành một câu chuyện tuyệt vời! ✨
         </div>
     `;
+
+  // Clear conversation history
+  conversationHistory = [];
+  streamingMessages.clear();
+
   setProcessingState(false);
 }
 
@@ -239,6 +314,102 @@ function focusInput() {
   if (!isProcessing) {
     messageInput.focus();
     messageInput.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+// Handle streaming message updates
+function handleStreamingMessage(messageId, chunk) {
+  const messageDiv = streamingMessages.get(messageId);
+  if (!messageDiv) {
+    console.warn("Streaming message not found:", messageId);
+    return;
+  }
+
+  const textDiv = messageDiv.querySelector(".message-text");
+  const suggestionsDiv = messageDiv.querySelector(".message-suggestions");
+
+  if (textDiv) {
+    // Update text content
+    textDiv.textContent = chunk.content;
+
+    // If streaming is complete
+    if (chunk.isComplete) {
+      // Remove from streaming messages
+      streamingMessages.delete(messageId);
+
+      // Add to conversation history
+      conversationHistory.push({
+        role: "model",
+        content: chunk.content,
+      });
+
+      // Add suggestions if available
+      if (chunk.suggestions && chunk.suggestions.length > 0) {
+        addSuggestions(suggestionsDiv, chunk.suggestions);
+      }
+
+      // Re-enable form
+      setProcessingState(false);
+    }
+  }
+
+  // Scroll to bottom
+  scrollToBottomSmooth();
+}
+
+// Add suggestions to message
+function addSuggestions(suggestionsDiv, suggestions) {
+  if (!suggestionsDiv || !suggestions || suggestions.length === 0) {
+    return;
+  }
+
+  suggestionsDiv.classList.remove("hidden");
+  suggestionsDiv.innerHTML = "";
+
+  suggestions.forEach((suggestion) => {
+    const suggestionElement = suggestionTemplate.content.cloneNode(true);
+    const button = suggestionElement.querySelector(".suggestion-btn");
+
+    if (button) {
+      button.textContent = suggestion;
+      button.addEventListener("click", () => {
+        messageInput.value = suggestion;
+        messageInput.focus();
+      });
+
+      suggestionsDiv.appendChild(suggestionElement);
+    }
+  });
+}
+
+// Handle error messages
+function handleError(errorMessage, details) {
+  console.error("Error from extension:", errorMessage, details);
+
+  // Create error message
+  const errorMsg = {
+    id: `error_${Date.now()}`,
+    text: `❌ ${errorMessage}`,
+    isUser: false,
+    timestamp: new Date().toISOString(),
+    isStreaming: false,
+  };
+
+  addMessage(errorMsg);
+  setProcessingState(false);
+}
+
+// Format timestamp
+function formatTimestamp(timestamp) {
+  if (!timestamp) {
+    return new Date().toLocaleTimeString();
+  }
+
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+  } catch (error) {
+    return new Date().toLocaleTimeString();
   }
 }
 

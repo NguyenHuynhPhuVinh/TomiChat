@@ -16,8 +16,62 @@
       {
         "command": "tomisakae.helloWorld",
         "title": "Hello World"
+      },
+      {
+        "command": "tomisakae.setApiKey",
+        "title": "Thiết lập API Key",
+        "category": "TomiChat"
+      },
+      {
+        "command": "tomisakae.clearApiKey",
+        "title": "Xóa API Key",
+        "category": "TomiChat"
       }
     ],
+    "configuration": {
+      "title": "TomiChat",
+      "properties": {
+        "tomiChat.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Google AI API Key cho TomiChat. Để trống để sử dụng biến môi trường.",
+          "scope": "application"
+        },
+        "tomiChat.model": {
+          "type": "string",
+          "default": "gemini-2.0-flash",
+          "description": "Model AI sử dụng cho TomiChat",
+          "enum": [
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash"
+          ],
+          "scope": "application"
+        },
+        "tomiChat.enableStreaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bật/tắt streaming response",
+          "scope": "application"
+        },
+        "tomiChat.maxTokens": {
+          "type": "number",
+          "default": 1000,
+          "description": "Số token tối đa cho mỗi phản hồi",
+          "minimum": 100,
+          "maximum": 4000,
+          "scope": "application"
+        },
+        "tomiChat.temperature": {
+          "type": "number",
+          "default": 0.8,
+          "description": "Độ sáng tạo của AI (0.0 - 2.0)",
+          "minimum": 0,
+          "maximum": 2,
+          "scope": "application"
+        }
+      }
+    },
     "views": {
       "tomisakae-sidebar": [
         {
@@ -67,7 +121,10 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@genkit-ai/googleai": "^1.12.0",
     "@tailwindcss/postcss": "^4.1.8",
-    "tailwindcss": "^4.1.8"
+    "genkit": "^1.12.0",
+    "tailwindcss": "^4.1.8",
+    "zod": "^3.25.56"
   }
 }

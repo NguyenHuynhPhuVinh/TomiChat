@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import { ChatbotService } from "./services/chatbotService";
+import { GenkitChatbotService } from "./services/genkitChatbotService";
 import { TemplateService } from "./services/templateService";
-import { WEBVIEW_COMMANDS } from "./constants/chatbot";
-import { ChatbotCommand } from "./types/chatbot";
+import { WEBVIEW_COMMANDS } from "./constants/genkit";
+import { ChatbotCommand, StreamingChunk } from "./types/genkit";
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "tomisakae.chatbotView";
@@ -10,12 +10,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
-  private readonly _chatbotService: ChatbotService;
+  private readonly _chatbotService: GenkitChatbotService;
   private readonly _templateService: TemplateService;
 
   constructor(extensionUri: vscode.Uri) {
     this._extensionUri = extensionUri;
-    this._chatbotService = ChatbotService.getInstance();
+    this._chatbotService = GenkitChatbotService.getInstance();
     this._templateService = TemplateService.getInstance(extensionUri);
   }
 
@@ -57,38 +57,57 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // Validate message
-    if (!this._chatbotService.validateMessage(userMessage)) {
-      return;
-    }
-
     try {
-      // Process message using service
-      const { userMsg, botMsg } = await this._chatbotService.processMessage(
-        userMessage
-      );
+      // Validate message
+      this._chatbotService.validateMessage(userMessage);
 
-      // Send user message to webview
+      // Create user message and send immediately
+      const userMsg = this._chatbotService.createMessage(userMessage, true);
       this._view.webview.postMessage({
         command: WEBVIEW_COMMANDS.ADD_MESSAGE,
         data: { message: userMsg },
       });
 
-      // Send bot response to webview
-      this._view.webview.postMessage({
-        command: WEBVIEW_COMMANDS.ADD_MESSAGE,
-        data: { message: botMsg },
-      });
-    } catch (error) {
-      console.error("Error processing message:", error);
-      // Send error message to webview
+      // Send initial bot message placeholder first
+      const botMessageId = `bot_${Date.now()}`;
       this._view.webview.postMessage({
         command: WEBVIEW_COMMANDS.ADD_MESSAGE,
         data: {
-          message: this._chatbotService.createMessage(
-            "Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.",
-            false
-          ),
+          message: {
+            id: botMessageId,
+            text: "",
+            isUser: false,
+            timestamp: new Date().toISOString(),
+            isStreaming: true,
+          },
+        },
+      });
+
+      // Process message with streaming support
+      await this._chatbotService.processMessage(
+        userMessage,
+        (chunk: StreamingChunk) => {
+          // Handle streaming chunks
+          if (this._view) {
+            this._view.webview.postMessage({
+              command: WEBVIEW_COMMANDS.STREAMING_MESSAGE,
+              data: {
+                messageId: botMessageId,
+                chunk,
+              },
+            });
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error processing message:", error);
+
+      // Send error message to webview
+      this._view.webview.postMessage({
+        command: WEBVIEW_COMMANDS.ERROR,
+        data: {
+          message: error instanceof Error ? error.message : "Đã có lỗi xảy ra",
+          details: error instanceof Error ? error.stack : undefined,
         },
       });
     }

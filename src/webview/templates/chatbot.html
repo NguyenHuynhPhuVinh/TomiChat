@@ -60,7 +60,10 @@
 
     <!-- Enhanced Message Template -->
     <template id="messageTemplate">
-      <div class="message flex items-start gap-3 mb-4 animate-fade-in">
+      <div
+        class="message flex items-start gap-3 mb-4 animate-fade-in"
+        data-message-id="{{messageId}}"
+      >
         <!-- Avatar -->
         <div
           class="message-avatar w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-blue-500 text-white shadow-sm"
@@ -74,13 +77,53 @@
             class="message-text text-sm leading-relaxed p-3 rounded-lg bg-gray-100 dark:bg-gray-700 break-words shadow-sm"
           >
             {{text}}
+            <span class="typing-indicator hidden">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </span>
           </div>
+
+          <!-- Suggestions -->
+          <div class="message-suggestions mt-2 flex flex-wrap gap-1 hidden">
+            <!-- Suggestions will be added dynamically -->
+          </div>
+
           <div
             class="message-time text-xs text-gray-500 dark:text-gray-400 mt-1 px-1"
           >
             {{timestamp}}
           </div>
         </div>
+      </div>
+    </template>
+
+    <!-- Suggestion Button Template -->
+    <template id="suggestionTemplate">
+      <button
+        class="suggestion-btn text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors duration-200"
+      >
+        {{suggestion}}
+      </button>
+    </template>
+
+    <!-- Typing Indicator Template -->
+    <template id="typingTemplate">
+      <div
+        class="typing-indicator-container flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm py-2"
+      >
+        <div class="typing-dots flex gap-1">
+          <div class="dot w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+          <div
+            class="dot w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+            style="animation-delay: 0.2s"
+          ></div>
+          <div
+            class="dot w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+            style="animation-delay: 0.4s"
+          ></div>
+        </div>
+        <span>TomiChat đang viết...</span>
       </div>
     </template>
 

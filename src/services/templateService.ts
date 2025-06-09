@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { CHATBOT_CONFIG } from "../constants/chatbot";
+import { CHATBOT_CONFIG } from "../constants/genkit";
 
 export class TemplateService {
   private static instance: TemplateService;
